@@ -26,6 +26,7 @@ var _wh: Array
 var _door: Node3D
 var _door_col: CollisionShape3D
 var _door_mat: StandardMaterial3D
+var _depth_mat: ShaderMaterial
 
 
 func generate(seed_value: int = -1) -> void:
@@ -104,6 +105,23 @@ func _carve_maze() -> void:
 
 # --- Geometry ---------------------------------------------------------------
 
+# Depth twins render the same geometry a second time on layer 2 with the
+# depth-pack material, so the depth SubViewport can build a metric depth
+# buffer for positional TimeWarp without touching the visible scene.
+func _depth_material() -> ShaderMaterial:
+	if _depth_mat == null:
+		_depth_mat = ShaderMaterial.new()
+		_depth_mat.shader = load("res://shaders/depth_pack.gdshader")
+	return _depth_mat
+
+
+func _depth_twin(src: GeometryInstance3D, parent: Node) -> void:
+	var t: GeometryInstance3D = src.duplicate()
+	t.layers = 2
+	t.material_override = _depth_material()
+	parent.add_child(t)
+
+
 func _checker_mat(a: Color, b: Color, cells: float, emission: float) -> ShaderMaterial:
 	var mat := ShaderMaterial.new()
 	mat.shader = load("res://shaders/checker.gdshader")
@@ -177,6 +195,7 @@ func _build_walls() -> void:
 	mmi.material_override = _checker_mat(
 		Color(0.02, 0.03, 0.07), Color(0.72, 0.95, 1.0), 1.1, 2.2)
 	add_child(mmi)
+	_depth_twin(mmi, self)
 
 
 func _slab(center: Vector3, dims: Vector3, mat: Material) -> MeshInstance3D:
@@ -193,10 +212,10 @@ func _slab(center: Vector3, dims: Vector3, mat: Material) -> MeshInstance3D:
 func _build_floor_ceiling() -> void:
 	var w := grid_w * cell_size
 	var d := grid_h * cell_size
-	_slab(Vector3(w * 0.5, -0.06, d * 0.5), Vector3(w, 0.12, d),
-		_checker_mat(Color(0.012, 0.018, 0.04), Color(0.14, 0.3, 0.4), 0.75, 1.0))
-	_slab(Vector3(w * 0.5, wall_height + 0.05, d * 0.5), Vector3(w, 0.1, d),
-		_checker_mat(Color(0.006, 0.01, 0.03), Color(0.25, 0.5, 0.68), 0.55, 0.6))
+	_depth_twin(_slab(Vector3(w * 0.5, -0.06, d * 0.5), Vector3(w, 0.12, d),
+		_checker_mat(Color(0.012, 0.018, 0.04), Color(0.14, 0.3, 0.4), 0.75, 1.0)), self)
+	_depth_twin(_slab(Vector3(w * 0.5, wall_height + 0.05, d * 0.5), Vector3(w, 0.1, d),
+		_checker_mat(Color(0.006, 0.01, 0.03), Color(0.25, 0.5, 0.68), 0.55, 0.6)), self)
 
 	var fbody := StaticBody3D.new()
 	fbody.name = "FloorBody"
@@ -262,6 +281,12 @@ func _place_targets() -> void:
 		t.position = cell_world_center(c) + Vector3(0, 1.55, 0)
 		add_child(t)
 		t.shot.connect(_on_target_shot)
+		# depth twin under _mesh inherits its pulse-scaling automatically
+		var dtwin := MeshInstance3D.new()
+		dtwin.mesh = t._mesh.mesh
+		dtwin.layers = 2
+		dtwin.material_override = _depth_material()
+		t._mesh.add_child(dtwin)
 	targets_total = chosen.size()
 
 
@@ -286,6 +311,7 @@ func _build_exit_door() -> void:
 	mesh.mesh = bm
 	mesh.material_override = _door_mat
 	_door.add_child(mesh)
+	_depth_twin(mesh, _door)  # child of _door -> follows the open animation
 
 	var body := StaticBody3D.new()
 	_door_col = CollisionShape3D.new()
@@ -309,8 +335,8 @@ func _build_exit_door() -> void:
 	# the void on the way out.
 	var pad_pos := door_pos + Vector3(1.6, -h * 0.5 - 0.05, 0)
 	var pad_dims := Vector3(3.2, 0.1, cell_size)
-	_slab(pad_pos, pad_dims,
-		_checker_mat(Color(0.02, 0.05, 0.03), Color(0.25, 0.85, 0.45), 1.0, 1.6))
+	_depth_twin(_slab(pad_pos, pad_dims,
+		_checker_mat(Color(0.02, 0.05, 0.03), Color(0.25, 0.85, 0.45), 1.0, 1.6)), self)
 	var pad_body := StaticBody3D.new()
 	var pad_col := CollisionShape3D.new()
 	var pad_shape := BoxShape3D.new()

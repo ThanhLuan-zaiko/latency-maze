@@ -6,16 +6,17 @@ extends Control
 const HELP_TEXT := """THE LATENCY MAZE — Asynchronous TimeWarp simulator
 
 WASD move · Mouse look · LMB shoot
-T    ATW on / off
-, .  render period -/+ 10 ms  (simulated engine fps)
-[ ]  pipeline latency -/+ 10 ms  (stale pose at render)
-O    overscan margin on / off
-G    auto head-sway (hands-free judder demo)
-R    new maze ·  H / F1 help ·  Esc release mouse
+T    ATW on / off            P    + positional warp (depth)
+, .  render period -/+ 10 ms      V    warp-shift heatmap
+[ ]  pipeline latency -/+ 10 ms   L    CSV log on/off
+O    overscan on / off   G   auto head-sway
+R    new maze · H / F1 help · Esc release mouse
 
 Shoot every glowing target to unlock the EXIT door.
-The world is rendered slow on purpose — ATW re-projects
-each stale frame onto your live head pose at scanout."""
+ROT = rotation-only reprojection; +POS adds depth-based
+parallax correction. Heatmap colors = per-pixel warp
+displacement; magenta holes = disocclusion, just like
+real positional TimeWarp."""
 
 var _stats: Label
 var _msg: Label
@@ -34,7 +35,7 @@ func _ready() -> void:
 	_stale.max_value = 1.0
 	_stale.show_percentage = false
 	_stale.custom_minimum_size = Vector2(230, 9)
-	_stale.position = Vector2(16, 158)
+	_stale.position = Vector2(16, 172)
 	_stale.mouse_filter = MOUSE_FILTER_IGNORE
 	add_child(_stale)
 
@@ -57,7 +58,7 @@ func _ready() -> void:
 	_help.offset_left = -460
 	_help.offset_right = -14
 	_help.offset_top = 12
-	_help.offset_bottom = 382
+	_help.offset_bottom = 412
 	var help_lbl := Label.new()
 	help_lbl.text = HELP_TEXT
 	help_lbl.mouse_filter = MOUSE_FILTER_IGNORE
